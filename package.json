@@ -19,5 +19,9 @@
   "bugs": {
     "url": "https://github.com/mavenave/jsml/issues"
   },
-  "homepage": "https://github.com/mavenave/jsml"
+  "homepage": "https://github.com/mavenave/jsml",
+  "devDependencies": {
+    "immutable": "^3.7.4",
+    "should": "^7.0.2"
+  }
 }
