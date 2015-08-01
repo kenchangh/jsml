@@ -80,21 +80,21 @@ describe('Validator', function() {
 
 // next, peek, eof, growl
 describe('InputStream', function () {
-  var CODE = 'hello world';
+  var CODE = 'hello world\nyolo';
 
-  var ic = input.InputContainer(CODE);
+  var state = input.InputContainer(CODE);
   var istream = input.InputStream;
 
   describe('#peek', function () {
     it('should be first value, no state change', function () {
-      istream.peek(ic).should.be.exactly(CODE[0]);
-      istream.peek(ic).should.be.exactly(CODE[0]); // confirm no state changes
+      istream.peek(state).should.be.exactly(CODE[0]);
+      istream.peek(state).should.be.exactly(CODE[0]); // confirm no state changes
     });
   });
 
   describe('#meow', function () {
     it('should throw error', function () {
-      (function(){ istream.growl(ic, 'grrr'); }).should.throw();
+      (function(){ istream.growl(state, 'grrr'); }).should.throw();
     });
   });
 
@@ -104,11 +104,13 @@ describe('InputStream', function () {
       for (var i=1; i<CODE.length; i++) {
         var actualCh = CODE[i];
 
-        ic = istream.next(ic); // new state generated
-        ch = ic.get('code').charAt(ic.get('pos'));
+        state = istream.next(state); // new state generated
+        ch = state.get('code').charAt(state.get('pos'));
+
+        //TODO: test for line number
 
         ch.should.be.exactly(actualCh);
-        istream.peek(ic).should.be.exactly(actualCh); // confirm state change
+        istream.peek(state).should.be.exactly(actualCh); // confirm state change
       }
     });
   });
@@ -116,10 +118,10 @@ describe('InputStream', function () {
   describe('#eof', function () {
     it('should reach eof', function () {
       // state will still change but eof is reached
-      sameIc = istream.next(ic);
-      Immutable.is(sameIc, ic).should.be.false();
+      sameIc = istream.next(state);
+      Immutable.is(sameIc, state).should.be.false();
 
-      // after iteration, ic state should have been changed
+      // after iteration, state state should have been changed
       istream.eof(sameIc).should.be.true();
     });
   });
@@ -128,8 +130,9 @@ describe('InputStream', function () {
 
 describe('Tokenizer', function () {
   var tokenizer = input.Tokenizer;
+  var istream = input.InputStream;
   var TYPE = 'num';
-  var ic;
+  var state;
 
   describe('#readDigit', function () {
     var INT = '1234';
@@ -138,32 +141,32 @@ describe('Tokenizer', function () {
     var HAS_OP = '12+4';
 
     it('should read integers', function () {
-      ic = input.InputContainer(INT);
-      tokenizer.readDigit(ic).token.should.match({
+      state = input.InputContainer(INT);
+      tokenizer.readDigit(state).token.should.match({
         type: TYPE,
         value: parseFloat(INT),
       });
     });
 
     it('should read floats', function () {
-      ic = input.InputContainer(FLOAT);
-      tokenizer.readDigit(ic).token.should.match({
+      state = input.InputContainer(FLOAT);
+      tokenizer.readDigit(state).token.should.match({
         type: TYPE,
         value: parseFloat(FLOAT),
       });
     });
 
     it('should stop at second period', function () {
-      ic = input.InputContainer(INVALID_FLOAT);
-      tokenizer.readDigit(ic).token.should.match({
+      state = input.InputContainer(INVALID_FLOAT);
+      tokenizer.readDigit(state).token.should.match({
         type: TYPE,
         value: 12.34,
       });
     });
 
     it('should not include operator', function () {
-      ic = input.InputContainer(HAS_OP);
-      tokenizer.readDigit(ic).token.should.match({
+      state = input.InputContainer(HAS_OP);
+      tokenizer.readDigit(state).token.should.match({
         type: TYPE,
         value: 12,
       });
@@ -176,14 +179,66 @@ describe('Tokenizer', function () {
     it('should read valid identifiers', function () {
       var VALID_IDS = ['a_5', 'aa6', '$a', '_a'];
 
+      var id;
       for (var i=0; i<VALID_IDS.length; i++) {
-        var id = VALID_IDS[i];
-        ic = input.InputContainer(id);
+        id = VALID_IDS[i];
+        state = input.InputContainer(id);
 
-        tokenizer.readId(ic).token.should.match({
+        tokenizer.readId(state).token.should.match({
           type: TYPE,
           value: id,
         });
+      }
+    });
+  });
+
+  describe('#skipShortComment', function () {
+    it('should skip comment and get character after newline', function () {
+      /**
+       * All test cases should hit 'x' because the comment stops after newline
+       */
+      var COMMENTS = [
+        '//this is ignored          \nx', // normal
+        '//////aaa      \nx', // consecutive slashes
+        '// /// // //   \nx', // interval between slashes
+      ];
+
+      var comment;
+      for (var i=0; i<COMMENTS.length; i++) {
+        comment = COMMENTS[i];
+        state = input.InputContainer(comment);
+
+        var newState = tokenizer.skipShortComment(state);
+
+        // grab the next character after newline, which is 'x'
+        istream.peek(newState).should.be.exactly('x');
+      }
+    });
+  });
+
+  describe('#skipLongComment', function () {
+    it('should skip comment and get character after */', function () {
+      /**
+       * All test cases should hit 'x' because the comment stops after newline
+       */
+      var COMMENTS = [
+        '/*   bla      */x', // normal
+        '/**\n\n\nyolo *****/x', // newlines & extra asterisks
+      ];
+
+      var comment;
+      for (var i=0; i<COMMENTS.length; i++) {
+        // have to replicate moving into the comments
+        // tokenizer has no idea how a comment starts
+        comment = COMMENTS[i];
+        comment = R.slice(2, comment.length, comment);
+
+        console.log(comment)
+        state = input.InputContainer(comment);
+        var newState = tokenizer.skipLongComment(state);
+
+        // grab the next character after newline, which is 'x'
+        istream.peek(newState).should.be.exactly('x');
       }
     });
   });
