@@ -1,0 +1,23 @@
+{
+  "name": "jsml",
+  "version": "0.0.0",
+  "description": "JavaScript + Markup = <3",
+  "main": "index.js",
+  "scripts": {
+    "test": "node"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mavenave/jsml.git"
+  },
+  "keywords": [
+    "javascript",
+    "markup"
+  ],
+  "author": "mavenave",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mavenave/jsml/issues"
+  },
+  "homepage": "https://github.com/mavenave/jsml"
+}
