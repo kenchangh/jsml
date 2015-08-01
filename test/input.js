@@ -4,10 +4,10 @@ var Immutable = require('immutable');
 
 var input = require('../interpreter/input');
 
-var v = new input.Validator();
-
 
 describe('Validator', function() {
+  var v = input.val;
+
   describe('#isDigit', function () {
     it('should check if string is digit', function () {
       v.isDigit('5').should.be.true();
@@ -67,12 +67,12 @@ describe('Validator', function() {
 
   describe('#isSpace', function () {
     it('should check if string is whitespace', function () {
-      v.isSpace(' ').should.be.true();
-      v.isSpace('\n').should.be.true();
-      v.isSpace(',').should.be.false();
-      v.isSpace(' function ').should.be.false();
-      v.isSpace('_').should.be.false();
-      v.isSpace('a').should.be.false();
+      v.isWhitespace(' ').should.be.true();
+      v.isWhitespace('\n').should.be.true();
+      v.isWhitespace(',').should.be.false();
+      v.isWhitespace(' function ').should.be.false();
+      v.isWhitespace('_').should.be.false();
+      v.isWhitespace('a').should.be.false();
     });
   });
 });
@@ -128,8 +128,63 @@ describe('InputStream', function () {
 
 describe('Tokenizer', function () {
   var tokenizer = input.Tokenizer;
-  var CODE = 'hello world';
+  var TYPE = 'num';
+  var ic;
 
-  describe('#readWhile', function () {
+  describe('#readDigit', function () {
+    var INT = '1234';
+    var FLOAT = '12.34';
+    var INVALID_FLOAT = '12.34.4';
+    var HAS_OP = '12+4';
+
+    it('should read integers', function () {
+      ic = input.InputContainer(INT);
+      tokenizer.readDigit(ic).token.should.match({
+        type: TYPE,
+        value: parseFloat(INT),
+      });
+    });
+
+    it('should read floats', function () {
+      ic = input.InputContainer(FLOAT);
+      tokenizer.readDigit(ic).token.should.match({
+        type: TYPE,
+        value: parseFloat(FLOAT),
+      });
+    });
+
+    it('should stop at second period', function () {
+      ic = input.InputContainer(INVALID_FLOAT);
+      tokenizer.readDigit(ic).token.should.match({
+        type: TYPE,
+        value: 12.34,
+      });
+    });
+
+    it('should not include operator', function () {
+      ic = input.InputContainer(HAS_OP);
+      tokenizer.readDigit(ic).token.should.match({
+        type: TYPE,
+        value: 12,
+      });
+    });
+  });
+
+  describe('#readId', function () {
+    var TYPE = 'id';
+
+    it('should read valid identifiers', function () {
+      var VALID_IDS = ['a_5', 'aa6', '$a', '_a'];
+
+      for (var i=0; i<VALID_IDS.length; i++) {
+        var id = VALID_IDS[i];
+        ic = input.InputContainer(id);
+
+        tokenizer.readId(ic).token.should.match({
+          type: TYPE,
+          value: id,
+        });
+      }
+    });
   });
 });
