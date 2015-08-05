@@ -1,3 +1,11 @@
+/**
+ *
+ * Chan Guan Hao.
+ *
+ * Concern: Passing around and reconstructing State.code each time is expensive,
+ *          make it visible globally but without mutating it.
+ *
+ **/
 var R = require('ramda');
 var Immutable = require('immutable');
 
@@ -95,10 +103,18 @@ var InputStream = {
   }),
 
   // State -> String
-  peek: R.curry(function(state) {
+  peek: R.curry(function (state) {
     // returns '' if index does not exist
     return R.nthChar(state.get('pos'), state.get('code'));
   }),
+
+  moveForwardBy: function (currentState, step) {
+    var state = currentState;
+    for (var i=0; i<step; i++) {
+      state = this.next(state);
+    }
+    return state;
+  },
 
   // State -> Boolean
   eof: function (state) {
@@ -116,10 +132,12 @@ var istream = InputStream; // alias
 
 var Tokenizer = {
   // State -> {newState: State, value: Any}
-  readWhile: R.curry(function (state, predicate) {
+  readWhile: function readWhile(state, predicate) {
     var buff = '';
 
-    while (!istream.eof(state) && predicate(istream.peek(state))) {
+    while (!istream.eof(state) &&
+      predicate(istream.peek(state), state)) {
+
       buff += istream.peek(state);
       state = istream.next(state);
     }
@@ -128,14 +146,13 @@ var Tokenizer = {
       newState: state,
       value: buff,
     };
-  }),
+  },
 
   // (State, String) -> {newState: State, token: Token}
-  readString: function readEscaped(state, end) {
+  readString: function readString(state, end) {
     var escaped = false, buff = '';
 
-    state = istream.next(state);
-    while(!istream.eof()) {
+    while(!istream.eof(state)) {
       state = istream.next(state);
       var ch = istream.peek(state);
 
@@ -199,14 +216,40 @@ var Tokenizer = {
   },
 
   // State -> State
-  skipComment: function skipComment(state) {
-    state = read_while(state, function (ch){
+  skipShortComment: function skipComment(state) {
+    state = this.readWhile(state, function (ch){
       return ch != '\n';
     }).newState;
 
     // go to next input after discovering a newline
     // return a new state to be used
     return istream.next(state);
+  },
+
+  skipLongComment: function skipLongComment(state) {
+    state = istream.moveForwardBy(state, 2); // skipping '/*'
+
+    state = this.readWhile(state, function (ch, currentState) {
+      if (ch === '*') {
+        var code = currentState.get('code'); // constant thru the whole process
+        var nextState = istream.next(currentState);
+        var nextCh = code.charAt(nextState.get('pos'));
+
+        if (nextCh === '/') {
+          return false;
+        }
+      }
+
+      return true;
+    }).newState;
+
+    // State changes
+    // 
+    //  1      2     3
+    // '*' -> '/' -> a
+    state = istream.moveForwardBy(state, 2);
+
+    return state;
   },
 
   readNext: function readNext(state) {
@@ -229,19 +272,31 @@ var Tokenizer = {
     if (input.eof(state)) return null;
 
     var code = state.get('code'), pos = state.get('pos');
-
     var ch = code.charAt(pos), nextCh = code.charAt(pos+1);
-    if ((ch+nextCh) === '//') {
-      state = this.skipComment(state);
-      return readNext(state);
+
+    if (val.isPunc(ch)) {
+      if (ch === '/') {
+        // Case '//'
+        if (nextCh === '/') {
+          state = this.skipShortComment(state);
+          return readNext(state); // skip to next token
+        }
+        // Case '/*'
+        else if (nextCh === '*') {
+          state = this.skipLongComment(state);
+          return readNext(state); // skip to next token
+        }
+      }
+
+      return captureState(state, TOKEN.punctuation, ch);
     }
 
     if (ch === "'") {
-      return this.readString("'");
+      return this.readString(state, "'");
     }
         
     if (ch === '"') {
-      return this.readString('"');
+      return this.readString(state, '"');
     }
 
     if (val.isDigit(ch)) {
@@ -250,10 +305,6 @@ var Tokenizer = {
 
     if (val.isId(ch)) {
       return this.readId(state);
-    }
-
-    if (val.isPunc(ch)) {
-      return captureState(state, TOKEN.punctuation, ch);
     }
 
     if (val.isOp(ch)) {

@@ -191,6 +191,28 @@ describe('Tokenizer', function () {
       }
     });
   });
+  
+  describe('#readString', function () {
+    var TYPE = 'str';
+
+    it('should read strings with single quotes', function () {
+      var STRING = "'test'";
+      state = input.InputContainer(STRING);
+      tokenizer.readString(state, "'").token.should.match({
+        type: TYPE,
+        value: 'test',
+      });
+    });
+
+    it('should read strings with double quotes', function () {
+      var STRING = '"test"';
+      state = input.InputContainer(STRING);
+      tokenizer.readString(state, '"').token.should.match({
+        type: TYPE,
+        value: 'test',
+      });
+    });
+  });
 
   describe('#skipShortComment', function () {
     it('should skip comment and get character after newline', function () {
@@ -231,9 +253,7 @@ describe('Tokenizer', function () {
         // have to replicate moving into the comments
         // tokenizer has no idea how a comment starts
         comment = COMMENTS[i];
-        comment = R.slice(2, comment.length, comment);
 
-        console.log(comment)
         state = input.InputContainer(comment);
         var newState = tokenizer.skipLongComment(state);
 
@@ -242,4 +262,5 @@ describe('Tokenizer', function () {
       }
     });
   });
+
 });
