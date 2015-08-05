@@ -191,7 +191,7 @@ describe('Tokenizer', function () {
       }
     });
   });
-  
+
   describe('#readString', function () {
     var TYPE = 'str';
 
@@ -260,6 +260,13 @@ describe('Tokenizer', function () {
         // grab the next character after newline, which is 'x'
         istream.peek(newState).should.be.exactly('x');
       }
+    });
+  });
+
+  describe('#readNext', function () {
+    it('create token stream', function () {
+      state = input.InputContainer('"hello world"');
+      var tokens = tokenizer.next(state);
     });
   });
 

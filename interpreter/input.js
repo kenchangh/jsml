@@ -75,8 +75,8 @@ var InputContainer = function (code) {
   // init state
   var _state = Immutable.Map({
     pos: 0,
-    line: 0,
-    col: 0,
+    line: 1,
+    col: 1,
     code: code,
   });
 
@@ -226,6 +226,7 @@ var Tokenizer = {
     return istream.next(state);
   },
 
+  // State -> State
   skipLongComment: function skipLongComment(state) {
     state = istream.moveForwardBy(state, 2); // skipping '/*'
 
@@ -252,24 +253,25 @@ var Tokenizer = {
     return state;
   },
 
-  readNext: function readNext(state) {
+  // State -> {newState: State, token: Token}
+  next: function next(state) {
     /**
      * State remains constant thru this function,
      * except while ignoring whitespace
      */
-    function captureState(state, type, value) {
+    function createToken(state, type) {
       return {
         newState: state,
         token: {
           type: type,
-          value: value,
+          value: istream.peek(state),
         }
       };
     }
 
-    state = readWhile(state, isWhitespace);
+    state = this.readWhile(state, val.isWhitespace).newState;
 
-    if (input.eof(state)) return null;
+    if (istream.eof(state)) return null;
 
     var code = state.get('code'), pos = state.get('pos');
     var ch = code.charAt(pos), nextCh = code.charAt(pos+1);
@@ -279,16 +281,16 @@ var Tokenizer = {
         // Case '//'
         if (nextCh === '/') {
           state = this.skipShortComment(state);
-          return readNext(state); // skip to next token
+          return this.next(state); // skip to next token
         }
         // Case '/*'
         else if (nextCh === '*') {
           state = this.skipLongComment(state);
-          return readNext(state); // skip to next token
+          return this.next(state); // skip to next token
         }
       }
 
-      return captureState(state, TOKEN.punctuation, ch);
+      return createToken(state, TOKEN.punctuation);
     }
 
     if (ch === "'") {
@@ -308,22 +310,39 @@ var Tokenizer = {
     }
 
     if (val.isOp(ch)) {
-      var buff = readWhile(state, isOp);
-      return captureState(state, TOKEN.operator, buff);
+      state = this.readWhile(state, val.isOp).newState;
+      return createToken(state, TOKEN.operator);
     }
   }
 };
 
 
-function parse(input) {
-  var val = new Validator();
-  var istream = new InputStream(input);
+var Parser = {
+  parse: function parse(code) {
+    var state = InputContainer(code);
+    var tokenList = [];
+    var stateAndToken;
 
-  while (!istream.eof()) {
-    var next = istream.peek();
-    if (val.isDigit(next)) readDigit();
-  }
-}
+    while (true) {
+      if (stateAndToken === undefined) {
+        stateAndToken = Tokenizer.next(state);
+      } else {
+        stateAndToken = Tokenizer.next(stateAndToken.newState);
+      }
+      console.log(stateAndToken);
+
+      if (stateAndToken === null) {
+        break;
+      } else {
+        tokenList.push(stateAndToken.token);
+      }
+    }
+
+    return tokenList;
+  },
+};
+
+console.log(Parser.parse('x = 5; x = "hello world"'));
 
 module.exports = {
   val: val,
